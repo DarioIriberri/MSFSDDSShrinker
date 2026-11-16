@@ -15,7 +15,7 @@ CONFIG_SRC = BASE_DIR / ".last_src"
 CONFIG_DST = BASE_DIR / ".last_dst"
 FORCED_DDS_FORMAT = None
 # FORCED_DDS_FORMAT = "BC1_UNORM"
-SKIP_TECH_SUFFIXES = False
+SKIP_TECH_SUFFIXES = True
 SKIP_MIN_DIMENSION = True
 
 # Minimum dimension threshold to avoid downscaling small UI/icon textures

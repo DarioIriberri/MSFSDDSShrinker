@@ -12,11 +12,12 @@ TEXCONV_PATH = BASE_DIR / "texconv.exe"
 TEXDIAG_PATH = BASE_DIR / "texdiag.exe"
 CONFIG_SRC = BASE_DIR / ".last_aig_src"
 FORCED_DDS_FORMAT = None
-SKIP_TECH_SUFFIXES = False
+SKIP_TECH_SUFFIXES = True
 SKIP_MIN_DIMENSION = True
+SRC_DIR = "C:/Users/dazz/AppData/Roaming/Microsoft Flight Simulator/Packages/Community/aig-aitraffic-oci/SimObjects/Airplanes"
 
 # Minimum dimension threshold to avoid downscaling small UI/icon textures
-MIN_DIMENSION = 512
+MIN_DIMENSION = 1
 
 # Suffixes to skip (normal maps, PBR/comp maps, lightmaps, metallic/specular maps)
 EXCLUDED_SUFFIXES = [
@@ -53,15 +54,6 @@ def get_saved_path(config_file: Path) -> str:
     return "C:\\"
 
 
-def select_folder(title: str, config_file: Path) -> Path | None:
-    initial = get_saved_path(config_file)
-    selected = filedialog.askdirectory(title=title, initialdir=initial)
-    if selected:
-        config_file.write_text(selected, encoding="utf-8")
-        return Path(selected)
-    return None
-
-
 def main():
     if not TEXCONV_PATH.exists():
         print(f"ERROR: texconv.exe not found at {TEXCONV_PATH}")
@@ -77,14 +69,15 @@ def main():
     root.withdraw()
     root.attributes("-topmost", True)
 
-    src_dir = select_folder("Select AIG Airplanes folder (or root community folder)", CONFIG_SRC)
-    if not src_dir:
+    if not SRC_DIR:
         print("Operation cancelled.")
         return
 
     # Recursive search for all .dds files in the directory tree
-    print(f"Scanning for DDS files recursively in: {src_dir} ...")
-    dds_files = list(src_dir.rglob("*.dds"))
+    print(f"Scanning for DDS files recursively in: {SRC_DIR} ...")
+    dds_files = [
+        f for f in Path(SRC_DIR).rglob("*") if f.is_file() and f.suffix.lower() == ".dds"
+    ]
     total_files = len(dds_files)
 
     if total_files == 0:
@@ -92,7 +85,7 @@ def main():
         input("Press Enter to exit...")
         return
 
-    print(f"\nTarget Directory: {src_dir}")
+    print(f"\nTarget Directory: {SRC_DIR}")
     print(f"Found {total_files} DDS files to process. Starting downscaling...\n")
 
     # Start timer
@@ -140,7 +133,7 @@ def main():
             "-w", str(target_width),
             "-h", str(target_height),
             "-f", dds_format,
-            "-m", "0",
+            "-m", "1",
             "-if", "CUBIC",
             "-y",
             "-o", str(parent_dir),
