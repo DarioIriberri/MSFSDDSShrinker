@@ -15,11 +15,12 @@ CONFIG_SRC = BASE_DIR / ".last_src"
 CONFIG_DST = BASE_DIR / ".last_dst"
 FORCED_DDS_FORMAT = None
 # FORCED_DDS_FORMAT = "BC1_UNORM"
-SKIP_TECH_SUFFIXES = True
+SKIP_TECH_SUFFIXES = False
 SKIP_MIN_DIMENSION = True
 
 # Minimum dimension threshold to avoid downscaling small UI/icon textures
-MIN_DIMENSION = 512
+MIN_PIXEL_DIMENSION = 512
+MIN_FILE_SIZE_MB = 1.5
 
 # Suffixes to skip (normal maps, PBR/comp maps, lightmaps, metallic/specular maps)
 EXCLUDED_SUFFIXES = [
@@ -126,13 +127,8 @@ def main():
         progress_pct = (index / total_files) * 100
         upper_name = file_path.name.upper()
 
-        # Skip technical maps (normals, comp, metallic, lightmaps, etc.)
-        if SKIP_TECH_SUFFIXES and any(suffix in upper_name for suffix in EXCLUDED_SUFFIXES):
-            skipped_count += 1
-            print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Technical map suffix): {file_path.name}")
-            continue
-
         orig_size = file_path.stat().st_size
+        orig_size_mb = orig_size / 1048576
         width, height, dds_format = get_dds_info(file_path)
 
         if width is None or height is None or dds_format is None:
@@ -140,10 +136,20 @@ def main():
             print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Unable to read DDS header via texdiag): {file_path.name}")
             continue
 
-        # Skip textures that are already small
-        if SKIP_MIN_DIMENSION and width <= MIN_DIMENSION and height <= MIN_DIMENSION:
+        total_original_bytes += orig_size
+
+        # Skip technical maps (normals, comp, metallic, lightmaps, etc.)
+        if SKIP_TECH_SUFFIXES and any(suffix in upper_name for suffix in EXCLUDED_SUFFIXES):
             skipped_count += 1
-            print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Resolution already <= {MIN_DIMENSION}px: {width}x{height}): {file_path.name}")
+            print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Technical map suffix): {file_path.name}")
+            total_new_bytes += orig_size
+            continue
+
+        # Skip textures that are already small
+        if SKIP_MIN_DIMENSION and ((width <= MIN_PIXEL_DIMENSION and height <= MIN_PIXEL_DIMENSION) or orig_size_mb <= MIN_FILE_SIZE_MB):
+            skipped_count += 1
+            print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Too small) {MIN_PIXEL_DIMENSION}px: {width}x{height}): {file_path.name} - {orig_size_mb:.3f}MB")
+            total_new_bytes += orig_size
             continue
 
         target_width = max(4, width // 2)
@@ -181,14 +187,13 @@ def main():
                 if abs(new_size - expected_size) <= tolerance:
                     verified_count += 1
                     print(
-                        f"[{index}/{total_files} - {progress_pct:.1f}%] [OK] {file_path.name} ({width}x{height} -> {target_width}x{target_height} | {dds_format} | Ratio: {actual_ratio:.2f}%)"
+                        f"[{index}/{total_files} - {progress_pct:.1f}%] [OK] {file_path.name} ({width}x{height} -> {target_width}x{target_height} | {orig_size_mb:.1f}MB | {dds_format} | Ratio: {actual_ratio:.2f}%)"
                     )
                 else:
                     print(
-                        f"[{index}/{total_files} - {progress_pct:.1f}%] [WARNING] {file_path.name} ({width}x{height} -> {target_width}x{target_height} | {dds_format}) | Actual ratio: {actual_ratio:.2f}% (Expected ~25%)"
+                        f"[{index}/{total_files} - {progress_pct:.1f}%] [WARNING] {file_path.name} ({width}x{height} -> {target_width}x{target_height} | {orig_size_mb:.1f}MB | {dds_format}) | Actual ratio: {actual_ratio:.2f}% (Expected ~25%)"
                     )
 
-                total_original_bytes += orig_size
                 total_new_bytes += new_size
             else:
                 print(
