@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import shutil
 import subprocess
 import tkinter as tk
 import sys
@@ -12,22 +13,61 @@ BASE_DIR = Path(r"C:/ddsConvert")
 TEXCONV_PATH = BASE_DIR / "texconv.exe"
 TEXDIAG_PATH = BASE_DIR / "texdiag.exe"
 CONFIG_SRC = BASE_DIR / ".last_src"
-CONFIG_DST = BASE_DIR / ".last_dst"
+OUTPUT_DIR = BASE_DIR / "OUT-Global"
+EXCLUSIONS_DIR = BASE_DIR / "OUT-Excluded"
 FORCED_DDS_FORMAT = None
 # FORCED_DDS_FORMAT = "BC1_UNORM"
-SKIP_TECH_SUFFIXES = False
+SKIP_TECH_SUFFIXES = True
 SKIP_MIN_DIMENSION = True
 
 # Minimum dimension threshold to avoid downscaling small UI/icon textures
 MIN_PIXEL_DIMENSION = 512
-MIN_FILE_SIZE_MB = 1.5
+MIN_FILE_SIZE_MB = 0.5
 
 # Suffixes to skip (normal maps, PBR/comp maps, lightmaps, metallic/specular maps)
+#EXCLUDED_SUFFIXES = [
+#    "_NORMAL", "_NORM", "_NOMAL", "-NORMAL", "-NORM", "-NOMAL",
+#    "_COMP", "-COMP", "_COMB",
+#    "_MTL", "_METALIC", "_METALLIC", "-METAL", "_MET",
+#    "_LM", "_SPECULAR", "_SPACULER", "_EMISSIVE", "_EMMISIVE", "_AO"
+#]
+
+# Textures to exclude from resizing
 EXCLUDED_SUFFIXES = [
-    "_NORMAL", "_NORM", "_NOMAL", "-NORMAL", "-NORM", "-NOMAL",
-    "_COMP", "-COMP", "_COMB",
-    "_MTL", "_METALIC", "_METALLIC", "-METAL", "_MET",
-    "_LM", "_SPECULAR", "_SPACULER", "_EMISSIVE", "_EMMISIVE", "_AO"
+    # Asphalt / road surfaces
+    "ASPHALT", "ASPHAL", "ASPH",
+    "TARMAC", "BITUMEN", "BITUMINOUS",
+    "ROAD", "ROADS",
+
+    # Concrete / cement / pavement
+    "CONCRETE", "CONCRET", "CEMENT",
+    "PAVEMENT", "PAVING", "PAVINGSTONE",
+    "SIDEWALK", "FOOTPATH",
+
+    # Ground surfaces
+    "DIRT", "EARTH", "SOIL",
+    "GRAVEL", "GRIT", "SAND", "MUD",
+    "GROUND", "TERRAIN",
+
+    # Grass / vegetation
+    "GRASS", "TURF", "SOD",
+    "VEGETATION",
+
+    # Airport markings
+    "MARKING", "MARKINGS", "MARK",
+    "PAINT", "STRIPE", "STRIPES",
+    "STENCIL", "CHEVRON",
+    "DESIGNATOR", "NUMBER",
+
+    # Runway / taxiway surfaces and markings
+    "RUNWAY", "RWY",
+    "TAXIWAY", "TAXI", "TWY",
+    "APRON",
+    "CENTERLINE", "CENTRELINE",
+    "THRESHOLD", "HOLDING",
+    "HOLD_SHORT", "HOLDINGPOINT",
+    "SHOULDER", "BLASTPAD",
+    "PARKING", "STAND"
 ]
 
 
@@ -86,8 +126,7 @@ def main():
         print("Operation cancelled.")
         return
 
-    # dst_dir = select_folder("2. Select DESTINATION folder for resized DDS files", CONFIG_DST)
-    dst_dir = Path(get_saved_path(CONFIG_DST))
+    dst_dir = Path(OUTPUT_DIR)
     if not dst_dir or not dst_dir.exists():
         print("Destination folder invalid or operation cancelled.")
         return
@@ -109,6 +148,14 @@ def main():
                     sub_file.unlink()
                 except Exception as e:
                     print(f"  [WARNING] Could not delete {sub_file.name}: {e}")
+
+    # Clean exclusions folder before starting if it exists
+    if EXCLUSIONS_DIR.exists():
+        for sub_file in EXCLUSIONS_DIR.glob("*.*"):
+            try:
+                sub_file.unlink()
+            except Exception as e:
+                print(f"  [WARNING] Could not delete {sub_file.name} from exclusions folder: {e}")
 
     print(f"\nSource:      {src_dir}")
     print(f"Destination: {dst_dir}")
@@ -141,7 +188,13 @@ def main():
         # Skip technical maps (normals, comp, metallic, lightmaps, etc.)
         if SKIP_TECH_SUFFIXES and any(suffix in upper_name for suffix in EXCLUDED_SUFFIXES):
             skipped_count += 1
-            print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Technical map suffix): {file_path.name}")
+            print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Technical map suffix): {file_path.name} - {orig_size_mb:.3f}")
+            # Copy excluded file to the configured exclusions folder
+            try:
+                EXCLUSIONS_DIR.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(file_path, EXCLUSIONS_DIR / file_path.name)
+            except Exception as e:
+                print(f"  [WARNING] Could not copy {file_path.name} to {EXCLUSIONS_DIR}: {e}")
             total_new_bytes += orig_size
             continue
 
