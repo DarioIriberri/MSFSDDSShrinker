@@ -197,6 +197,8 @@ def main():
     converted_count = 0
     verified_count = 0
     skipped_count = 0
+    excluded_count = 0
+    small_count = 0
     total_original_bytes = 0
     total_new_bytes = 0
     total_excluded_bytes = 0
@@ -225,7 +227,7 @@ def main():
 
         # Skip technical maps (normals, comp, metallic, lightmaps, etc.)
         if SKIP_TECH_SUFFIXES and any(suffix in upper_name for suffix in EXCLUDED_SUFFIXES):
-            skipped_count += 1
+            excluded_count += 1
             print(
                 f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Technical map suffix): {file_path.name} - {orig_size_mb:.3f}")
             # Copy excluded file to the configured exclusions folder
@@ -246,14 +248,14 @@ def main():
         # Skip textures that are already small
         if SKIP_MIN_DIMENSION and (
                 (width <= MIN_PIXEL_DIMENSION and height <= MIN_PIXEL_DIMENSION) or orig_size_mb <= MIN_FILE_SIZE_MB):
-            skipped_count += 1
+            small_count += 1
             print(
                 f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Too small) {MIN_PIXEL_DIMENSION}px: {width}x{height}): {file_path.name} - {orig_size_mb:.3f}MB")
 
             try:
                 TOO_SMALL_DIR.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(file_path, TOO_SMALL_DIR / file_path.name)
-                # convert_dds(target_width, target_height, dds_format, file_path, Path(TOO_SMALL_DIR))
+                # shutil.copy2(file_path, TOO_SMALL_DIR / file_path.name)
+                convert_dds(target_width, target_height, dds_format, file_path, Path(TOO_SMALL_DIR))
 
             except Exception as e:
                 print(f"  [WARNING] Could not copy {file_path.name} to {EXCLUSIONS_DIR}: {e}")
@@ -298,6 +300,8 @@ def main():
                 f"[{index}/{total_files} - {progress_pct:.1f}%] [ERROR] Conversion failed for {file_path.name}: {result.stderr.strip()}"
             )
 
+    skipped_count += excluded_count + small_count
+
     # Stop timer and calculate elapsed time
     end_time = time.time()
     elapsed_seconds = end_time - start_time
@@ -319,6 +323,8 @@ def main():
     print(f" - Files converted successfully : {converted_count}")
     print(f" - Verified at exact 1/4 ratio  : {verified_count}")
     print(f" - Skipped (excluded/small/err) : {skipped_count}")
+    print(f"    - Excluded                  : {excluded_count}")
+    print(f"    - Too small                 : {small_count}")
     print("-" * 65)
     print("📊 DISK SPACE SUMMARY:")
     print(f" - Total original size  : {orig_mb:.2f} MB")
