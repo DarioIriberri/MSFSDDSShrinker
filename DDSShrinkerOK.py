@@ -22,8 +22,8 @@ SKIP_TECH_SUFFIXES = True
 SKIP_MIN_DIMENSION = True
 
 # Minimum dimension threshold to avoid downscaling small UI/icon textures
-MIN_PIXEL_DIMENSION = 512
-MIN_FILE_SIZE_MB = 0.5
+MIN_PIXEL_DIMENSION = 8
+MIN_FILE_SIZE_MB = 0
 
 # Suffixes to skip (normal maps, PBR/comp maps, lightmaps, metallic/specular maps)
 # EXCLUDED_SUFFIXES = [

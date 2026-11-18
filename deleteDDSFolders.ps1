@@ -1,5 +1,6 @@
 # Ruta base donde se encuentran las carpetas
-$rutaBase = "C:\ddsConvert"
+# $rutaBase = "C:\ddsConvert"
+$rutaBase = $PSScriptRoot
 
 # Comprobar que la ruta existe
 if (Test-Path $rutaBase) {
