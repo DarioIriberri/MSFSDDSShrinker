@@ -13,12 +13,13 @@ BASE_DIR = Path(r"C:/ddsConvert")
 TEXCONV_PATH = BASE_DIR / "texconv.exe"
 TEXDIAG_PATH = BASE_DIR / "texdiag.exe"
 CONFIG_SRC = BASE_DIR / ".last_src"
-OUTPUT_DIR = BASE_DIR / "OUT-Global"
+OUTPUT_DIR = BASE_DIR / "OUT-Converted"
+ORIGINAL_DIR = BASE_DIR / "OUT-Original"
 EXCLUSIONS_DIR = BASE_DIR / "OUT-Excluded"
 TOO_SMALL_DIR = BASE_DIR / "OUT-Small"
 FORCED_DDS_FORMAT = None
 # FORCED_DDS_FORMAT = "BC1_UNORM"
-SKIP_TECH_SUFFIXES = True
+SKIP_TECH_SUFFIXES = False
 SKIP_MIN_DIMENSION = True
 
 # Minimum dimension threshold to avoid downscaling small UI/icon textures
@@ -78,8 +79,6 @@ if len(sys.argv) > 1:
         SKIP_TECH_SUFFIXES = False
     else:
         SKIP_TECH_SUFFIXES = True
-else:
-    SKIP_TECH_SUFFIXES = True
 
 
 def get_dds_info(file_path: Path):
@@ -132,6 +131,7 @@ def convert_dds(target_width, target_height, dds_format, file_path, output_dir):
 
     # Execute conversion with texconv
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    shutil.copy2(file_path, ORIGINAL_DIR / file_path.name)
 
     return result
 
@@ -226,24 +226,29 @@ def main():
         total_original_bytes += orig_size
 
         # Skip technical maps (normals, comp, metallic, lightmaps, etc.)
-        if SKIP_TECH_SUFFIXES and any(suffix in upper_name for suffix in EXCLUDED_SUFFIXES):
-            excluded_count += 1
-            print(
-                f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Technical map suffix): {file_path.name} - {orig_size_mb:.3f}")
-            # Copy excluded file to the configured exclusions folder
-            try:
-                EXCLUSIONS_DIR.mkdir(parents=True, exist_ok=True)
-                convert_dds(target_width, target_height, dds_format, file_path, Path(EXCLUSIONS_DIR))
+        if any(suffix in upper_name for suffix in EXCLUDED_SUFFIXES):
+            if SKIP_TECH_SUFFIXES:
+                excluded_count += 1
+                print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Technical map suffix): {file_path.name} - {orig_size_mb:.3f}")
+                # Copy excluded file to the configured exclusions folder
+                try:
+                    convert_dds(target_width, target_height, dds_format, file_path, Path(EXCLUSIONS_DIR))
 
-            except Exception as e:
-                print(f"  [WARNING] Could not copy {file_path.name} to {EXCLUSIONS_DIR}: {e}")
-            total_new_bytes += orig_size
-            excluded_file_path = EXCLUSIONS_DIR / file_path.name
-            if excluded_file_path.exists():
-                excl_size = excluded_file_path.stat().st_size
-                total_excluded_bytes += excl_size
+                except Exception as e:
+                    print(f"  [WARNING] Could not copy {file_path.name} to {EXCLUSIONS_DIR}: {e}")
+                total_new_bytes += orig_size
+                excluded_file_path = EXCLUSIONS_DIR / file_path.name
+                if excluded_file_path.exists():
+                    excl_size = excluded_file_path.stat().st_size
+                    total_excluded_bytes += excl_size
+                continue
 
-            continue
+            else:
+                try:
+                    shutil.copy2(file_path, EXCLUSIONS_DIR / file_path.name)
+
+                except Exception as e:
+                    print(f"  [WARNING] Could not copy {file_path.name} to {EXCLUSIONS_DIR}: {e}")
 
         # Skip textures that are already small
         if SKIP_MIN_DIMENSION and (
