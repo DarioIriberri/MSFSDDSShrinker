@@ -15,6 +15,7 @@ TEXDIAG_PATH = BASE_DIR / "texdiag.exe"
 CONFIG_SRC = BASE_DIR / ".last_src"
 OUTPUT_DIR = BASE_DIR / "OUT-Global"
 EXCLUSIONS_DIR = BASE_DIR / "OUT-Excluded"
+TOO_SMALL_DIR = BASE_DIR / "OUT-Small"
 FORCED_DDS_FORMAT = None
 # FORCED_DDS_FORMAT = "BC1_UNORM"
 SKIP_TECH_SUFFIXES = True
@@ -25,12 +26,12 @@ MIN_PIXEL_DIMENSION = 512
 MIN_FILE_SIZE_MB = 0.5
 
 # Suffixes to skip (normal maps, PBR/comp maps, lightmaps, metallic/specular maps)
-#EXCLUDED_SUFFIXES = [
+# EXCLUDED_SUFFIXES = [
 #    "_NORMAL", "_NORM", "_NOMAL", "-NORMAL", "-NORM", "-NOMAL",
 #    "_COMP", "-COMP", "_COMB",
 #    "_MTL", "_METALIC", "_METALLIC", "-METAL", "_MET",
 #    "_LM", "_SPECULAR", "_SPACULER", "_EMISSIVE", "_EMMISIVE", "_AO"
-#]
+# ]
 
 # Textures to exclude from resizing
 EXCLUDED_SUFFIXES = [
@@ -115,6 +116,7 @@ def select_folder(title: str, config_file: Path) -> Path | None:
         return Path(selected)
     return None
 
+
 def convert_dds(target_width, target_height, dds_format, file_path, output_dir):
     cmd = [
         str(TEXCONV_PATH),
@@ -198,6 +200,7 @@ def main():
     total_original_bytes = 0
     total_new_bytes = 0
     total_excluded_bytes = 0
+    total_small_bytes = 0
 
     for index, file_path in enumerate(dds_files, start=1):
         progress_pct = (index / total_files) * 100
@@ -213,7 +216,8 @@ def main():
 
         if width is None or height is None or dds_format is None:
             skipped_count += 1
-            print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Unable to read DDS header via texdiag): {file_path.name}")
+            print(
+                f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Unable to read DDS header via texdiag): {file_path.name}")
 
             continue
 
@@ -222,7 +226,8 @@ def main():
         # Skip technical maps (normals, comp, metallic, lightmaps, etc.)
         if SKIP_TECH_SUFFIXES and any(suffix in upper_name for suffix in EXCLUDED_SUFFIXES):
             skipped_count += 1
-            print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Technical map suffix): {file_path.name} - {orig_size_mb:.3f}")
+            print(
+                f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Technical map suffix): {file_path.name} - {orig_size_mb:.3f}")
             # Copy excluded file to the configured exclusions folder
             try:
                 EXCLUSIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -239,10 +244,22 @@ def main():
             continue
 
         # Skip textures that are already small
-        if SKIP_MIN_DIMENSION and ((width <= MIN_PIXEL_DIMENSION and height <= MIN_PIXEL_DIMENSION) or orig_size_mb <= MIN_FILE_SIZE_MB):
+        if SKIP_MIN_DIMENSION and (
+                (width <= MIN_PIXEL_DIMENSION and height <= MIN_PIXEL_DIMENSION) or orig_size_mb <= MIN_FILE_SIZE_MB):
             skipped_count += 1
-            print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Too small) {MIN_PIXEL_DIMENSION}px: {width}x{height}): {file_path.name} - {orig_size_mb:.3f}MB")
+            print(
+                f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Too small) {MIN_PIXEL_DIMENSION}px: {width}x{height}): {file_path.name} - {orig_size_mb:.3f}MB")
+
+            try:
+                TOO_SMALL_DIR.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(file_path, TOO_SMALL_DIR / file_path.name)
+                # convert_dds(target_width, target_height, dds_format, file_path, Path(TOO_SMALL_DIR))
+
+            except Exception as e:
+                print(f"  [WARNING] Could not copy {file_path.name} to {EXCLUSIONS_DIR}: {e}")
+
             total_new_bytes += orig_size
+            total_small_bytes += orig_size
 
             continue
 
@@ -294,6 +311,7 @@ def main():
     orig_mb = total_original_bytes / (1024 * 1024)
     new_mb = total_new_bytes / (1024 * 1024)
     excl_mb = total_excluded_bytes / (1024 * 1024)
+    small_mb = total_small_bytes / (1024 * 1024)
     reduction_pct = (saved_bytes / total_original_bytes * 100) if total_original_bytes > 0 else 0
 
     print("\n" + "=" * 65)
@@ -303,10 +321,11 @@ def main():
     print(f" - Skipped (excluded/small/err) : {skipped_count}")
     print("-" * 65)
     print("📊 DISK SPACE SUMMARY:")
-    print(f" - Total original size : {orig_mb:.2f} MB")
-    print(f" - Total reduced size  : {new_mb:.2f} MB")
-    print(f" - Total excluded size : {excl_mb:.2f} MB")
-    print(f" - Total space saved   : {saved_mb:.2f} MB ({reduction_pct:.1f}% reduction)")
+    print(f" - Total original size  : {orig_mb:.2f} MB")
+    print(f" - Total reduced size   : {new_mb:.2f} MB")
+    print(f" - Total excluded size  : {excl_mb:.2f} MB")
+    print(f" - Total too small size : {small_mb:.2f} MB")
+    print(f" - Total space saved    : {saved_mb:.2f} MB ({reduction_pct:.1f}% reduction)")
     print("-" * 65)
     if minutes > 0:
         print(f" ⏱️ Total elapsed time: {minutes} minutes and {seconds:.2f} seconds ({elapsed_seconds:.2f}s)")
