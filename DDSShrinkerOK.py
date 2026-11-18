@@ -197,6 +197,7 @@ def main():
     skipped_count = 0
     total_original_bytes = 0
     total_new_bytes = 0
+    total_excluded_bytes = 0
 
     for index, file_path in enumerate(dds_files, start=1):
         progress_pct = (index / total_files) * 100
@@ -213,6 +214,7 @@ def main():
         if width is None or height is None or dds_format is None:
             skipped_count += 1
             print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Unable to read DDS header via texdiag): {file_path.name}")
+
             continue
 
         total_original_bytes += orig_size
@@ -229,6 +231,11 @@ def main():
             except Exception as e:
                 print(f"  [WARNING] Could not copy {file_path.name} to {EXCLUSIONS_DIR}: {e}")
             total_new_bytes += orig_size
+            excluded_file_path = EXCLUSIONS_DIR / file_path.name
+            if excluded_file_path.exists():
+                excl_size = excluded_file_path.stat().st_size
+                total_excluded_bytes += excl_size
+
             continue
 
         # Skip textures that are already small
@@ -236,6 +243,7 @@ def main():
             skipped_count += 1
             print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Too small) {MIN_PIXEL_DIMENSION}px: {width}x{height}): {file_path.name} - {orig_size_mb:.3f}MB")
             total_new_bytes += orig_size
+
             continue
 
         if FORCED_DDS_FORMAT is not None:
@@ -285,6 +293,7 @@ def main():
     saved_mb = saved_bytes / (1024 * 1024)
     orig_mb = total_original_bytes / (1024 * 1024)
     new_mb = total_new_bytes / (1024 * 1024)
+    excl_mb = total_excluded_bytes / (1024 * 1024)
     reduction_pct = (saved_bytes / total_original_bytes * 100) if total_original_bytes > 0 else 0
 
     print("\n" + "=" * 65)
@@ -296,6 +305,7 @@ def main():
     print("📊 DISK SPACE SUMMARY:")
     print(f" - Total original size : {orig_mb:.2f} MB")
     print(f" - Total reduced size  : {new_mb:.2f} MB")
+    print(f" - Total excluded size : {excl_mb:.2f} MB")
     print(f" - Total space saved   : {saved_mb:.2f} MB ({reduction_pct:.1f}% reduction)")
     print("-" * 65)
     if minutes > 0:
