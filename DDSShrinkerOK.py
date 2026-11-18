@@ -42,12 +42,12 @@ EXCLUDED_SUFFIXES = [
     # Concrete / cement / pavement
     "CONCRETE", "CONCRET", "CEMENT",
     "PAVEMENT", "PAVING", "PAVINGSTONE",
-    "SIDEWALK", "FOOTPATH",
+    "SIDEWALK", "FOOTPATH", "_TILE",
 
     # Ground surfaces
     "DIRT", "EARTH", "SOIL",
     "GRAVEL", "GRIT", "SAND", "MUD",
-    "GROUND", "TERRAIN",
+    "GROUND", "GROND", "TERRAIN", "DECAL",
 
     # Grass / vegetation
     "GRASS", "TURF", "SOD",
@@ -69,6 +69,16 @@ EXCLUDED_SUFFIXES = [
     "SHOULDER", "BLASTPAD",
     "PARKING", "STAND"
 ]
+
+# Read skip_excludes from command line argument (default to True if not provided)
+if len(sys.argv) > 1:
+    arg_val = sys.argv[1].strip().lower()
+    if arg_val in ["false", "0", "no"]:
+        SKIP_TECH_SUFFIXES = False
+    else:
+        SKIP_TECH_SUFFIXES = True
+else:
+    SKIP_TECH_SUFFIXES = True
 
 
 def get_dds_info(file_path: Path):
@@ -104,6 +114,24 @@ def select_folder(title: str, config_file: Path) -> Path | None:
         config_file.write_text(selected, encoding="utf-8")
         return Path(selected)
     return None
+
+def convert_dds(target_width, target_height, dds_format, file_path, output_dir):
+    cmd = [
+        str(TEXCONV_PATH),
+        "-w", str(target_width),
+        "-h", str(target_height),
+        "-f", dds_format,
+        "-m", "0",
+        "-if", "CUBIC",
+        "-y",
+        "-o", str(output_dir),
+        str(file_path)
+    ]
+
+    # Execute conversion with texconv
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+    return result
 
 
 def main():
@@ -178,6 +206,10 @@ def main():
         orig_size_mb = orig_size / 1048576
         width, height, dds_format = get_dds_info(file_path)
 
+        target_width = max(4, width // 2)
+        target_height = max(4, height // 2)
+        output_file_path = dst_dir / file_path.name
+
         if width is None or height is None or dds_format is None:
             skipped_count += 1
             print(f"[{index}/{total_files} - {progress_pct:.1f}%] SKIPPED (Unable to read DDS header via texdiag): {file_path.name}")
@@ -192,7 +224,8 @@ def main():
             # Copy excluded file to the configured exclusions folder
             try:
                 EXCLUSIONS_DIR.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(file_path, EXCLUSIONS_DIR / file_path.name)
+                convert_dds(target_width, target_height, dds_format, file_path, Path(EXCLUSIONS_DIR))
+
             except Exception as e:
                 print(f"  [WARNING] Could not copy {file_path.name} to {EXCLUSIONS_DIR}: {e}")
             total_new_bytes += orig_size
@@ -205,27 +238,10 @@ def main():
             total_new_bytes += orig_size
             continue
 
-        target_width = max(4, width // 2)
-        target_height = max(4, height // 2)
-        output_file_path = dst_dir / file_path.name
-
         if FORCED_DDS_FORMAT is not None:
             dds_format = FORCED_DDS_FORMAT
 
-        cmd = [
-            str(TEXCONV_PATH),
-            "-w", str(target_width),
-            "-h", str(target_height),
-            "-f", dds_format,
-            "-m", "0",
-            "-if", "CUBIC",
-            "-y",
-            "-o", str(dst_dir),
-            str(file_path)
-        ]
-
-        # Execute conversion with texconv
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = convert_dds(target_width, target_height, dds_format, file_path, dst_dir)
 
         if result.returncode == 0:
             converted_count += 1

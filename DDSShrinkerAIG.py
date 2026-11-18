@@ -11,12 +11,12 @@ BASE_DIR = Path(r"C:/ddsConvert")
 TEXCONV_PATH = BASE_DIR / "texconv.exe"
 TEXDIAG_PATH = BASE_DIR / "texdiag.exe"
 CONFIG_SRC = BASE_DIR / ".last_aig_src"
-FORCED_DDS_FORMAT = "BC1_UNORM"
+FORCED_DDS_FORMAT = None
 SKIP_TECH_SUFFIXES = False
 SKIP_MIN_DIMENSION = True
 SRC_DIR = "C:/Users/dazz/AppData/Roaming/Microsoft Flight Simulator/Packages/Community/aig-aitraffic-oci/SimObjects/Airplanes"
 
-# Minimum dimension threshold to skip tiny files
+# Minimum dimension threshold to avoid downscaling small UI/icon textures
 MIN_DIMENSION = 64
 
 # Suffixes to skip (normal maps, PBR/comp maps, lightmaps, metallic/specular maps)
@@ -71,6 +71,14 @@ def get_dds_info(file_path: Path):
   return None, None, None, None
 
 
+def get_saved_path(config_file: Path) -> str:
+  if config_file.exists():
+    saved = config_file.read_text(encoding="utf-8").strip()
+    if os.path.isdir(saved):
+      return saved
+  return "C:\\"
+
+
 def main():
   if not TEXCONV_PATH.exists():
     print(f"ERROR: texconv.exe not found at {TEXCONV_PATH}")
@@ -105,12 +113,12 @@ def main():
     return
 
   print(f"\nTarget Directory: {SRC_DIR}")
-  print(f"Found {total_files} DDS files to process. Starting re-encoding...\n")
+  print(f"Found {total_files} DDS files to process. Starting downscaling...\n")
 
   # Start timer
   start_time = time.time()
 
-  processed_count = 0
+  converted_count = 0
   verified_count = 0
   skipped_count = 0
   total_original_bytes = 0
@@ -144,7 +152,7 @@ def main():
       )
       continue
 
-    # Skip textures that are already small based on minimum dimension
+    # Skip textures that are already small
     if SKIP_MIN_DIMENSION and width <= MIN_DIMENSION and height <= MIN_DIMENSION:
       skipped_count += 1
       print(
@@ -153,10 +161,10 @@ def main():
       )
       continue
 
-    # Keep original dimensions and mipmaps 1:1 to prevent visual corruption
-    target_width = width
-    target_height = height
-    target_mipmaps = orig_mipmaps
+    target_width = max(4, width // 2)
+    target_height = max(4, height // 2)
+    # Preserve original mipmap structure (1 if unmipped, or scaled down by 1 level)
+    target_mipmaps = 1 if orig_mipmaps <= 1 else max(1, orig_mipmaps - 1)
     parent_dir = file_path.parent
 
     if FORCED_DDS_FORMAT is not None:
@@ -167,37 +175,41 @@ def main():
         "-w", str(target_width),
         "-h", str(target_height),
         "-f", dds_format,
-        "-m", "1",
+        # "-m", str(target_mipmaps),
+        "-m", "0",
+        "-if", "CUBIC",
         "-y", "-o",
         str(parent_dir),
         str(file_path),
     ]
 
-    # Execute re-encoding with texconv directly to the file's folder (overwriting)
+    # Execute conversion with texconv directly to the file's folder (overwriting)
     result = subprocess.run(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
 
     if result.returncode == 0:
-      processed_count += 1
+      converted_count += 1
 
       if file_path.exists():
         new_size = file_path.stat().st_size
+        expected_size = orig_size / 4.0
         actual_ratio = (new_size / orig_size) * 100
-        # 3% tolerance for file size variations during container re-writing
-        tolerance = orig_size * 0.03
+        tolerance = expected_size * 0.02
 
-        if abs(new_size - orig_size) <= tolerance:
+        if abs(new_size - expected_size) <= tolerance:
           verified_count += 1
           print(
               f"[{index}/{total_files} - {progress_pct:.1f}%] [OK]"
-              f" {file_path.name} ({width}x{height} | {dds_format} | Ratio:"
+              f" {file_path.name} ({width}x{height} ->"
+              f" {target_width}x{target_height} | {dds_format} | Ratio:"
               f" {actual_ratio:.2f}%)"
           )
         else:
           print(
-              f"[{index}/{total_files} - {progress_pct:.1f}%] [WARNING]"
-              f" {file_path.name} ({width}x{height} | {dds_format}) | Ratio:"
+              f"[{index}/{total_files} - {progress_pct:.1f}%] [WARNING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!]"
+              f" {file_path.name} ({width}x{height} ->"
+              f" {target_width}x{target_height} | {dds_format}) | Ratio:"
               f" {actual_ratio:.2f}%"
           )
 
@@ -209,7 +221,7 @@ def main():
         )
     else:
       print(
-          f"[{index}/{total_files} - {progress_pct:.1f}%] [ERROR] Processing"
+          f"[{index}/{total_files} - {progress_pct:.1f}%] [ERROR] Conversion"
           f" failed for {file_path.name}: {result.stderr.strip()}"
       )
 
@@ -220,7 +232,7 @@ def main():
   minutes = int(elapsed_seconds // 60)
   seconds = elapsed_seconds % 60
 
-  # Calculate disk space changes
+  # Calculate disk space saved
   saved_bytes = total_original_bytes - total_new_bytes
   saved_mb = saved_bytes / (1024 * 1024)
   orig_mb = total_original_bytes / (1024 * 1024)
@@ -232,17 +244,15 @@ def main():
   )
 
   print("\n" + "=" * 65)
-  print("AIG Textures Re-encoding Process Completed.")
-  print(f" - Files processed successfully : {processed_count}")
-  print(f" - Verified within tolerance  : {verified_count}")
+  print("AIG Textures Downscale Process Completed.")
+  print(f" - Files processed successfully : {converted_count}")
+  print(f" - Verified at exact 1/4 ratio  : {verified_count}")
   print(f" - Skipped (excluded/small/err) : {skipped_count}")
   print("-" * 65)
   print("📊 DISK SPACE SUMMARY:")
   print(f" - Total original size : {orig_mb:.2f} MB")
-  print(f" - Total re-encoded size: {new_mb:.2f} MB")
-  print(
-      f" - Total space change  : {saved_mb:.2f} MB ({reduction_pct:+.1f}%)"
-  )
+  print(f" - Total reduced size  : {new_mb:.2f} MB")
+  print(f" - Total space saved   : {saved_mb:.2f} MB ({reduction_pct:.1f}% reduction)")
   print("-" * 65)
   if minutes > 0:
     print(
