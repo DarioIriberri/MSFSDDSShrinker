@@ -18,4 +18,7 @@ if (Test-Path $rutaBase) {
     Write-Host "La ruta $rutaBase no existe." -ForegroundColor Red
 }
 
-Pause
+timeout /t 2
+#Pause
+#Write-Host "`nProceso finalizado. Pulsa cualquier tecla para cerrar..." -ForegroundColor Yellow
+#$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

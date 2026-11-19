@@ -64,7 +64,7 @@ EXCLUDED_SUFFIXES = [
     # Runway / taxiway surfaces and markings
     "RUNWAY", "RWY",
     "TAXIWAY", "TAXI", "TWY",
-    "APRON",
+    "APRON", "SKID",
     "CENTERLINE", "CENTRELINE",
     "THRESHOLD", "HOLDING",
     "HOLD_SHORT", "HOLDINGPOINT",
