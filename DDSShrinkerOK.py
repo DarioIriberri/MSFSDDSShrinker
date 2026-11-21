@@ -44,7 +44,7 @@ EXCLUDED_SUFFIXES = [
     # Concrete / cement / pavement
     "CONCRETE", "CONCRET", "CEMENT",
     "PAVEMENT", "PAVING", "PAVINGSTONE",
-    "SIDEWALK", "FOOTPATH", "_TILE",
+    "SIDEWALK", "FOOTPATH", "TILE",
 
     # Ground surfaces
     "DIRT", "EARTH", "SOIL", "PUDDLE"
@@ -58,7 +58,7 @@ EXCLUDED_SUFFIXES = [
     # Airport markings
     "MARKING", "MARKINGS", "MARK",
     "PAINT", "STRIPE", "STRIPES",
-    "STENCIL", "CHEVRON", "_EDGE", "_LINE"
+    "STENCIL", "CHEVRON", "EDGE", "LINE"
     "DESIGNATOR", "NUMBER",
 
     # Runway / taxiway surfaces and markings
