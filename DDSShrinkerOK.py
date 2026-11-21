@@ -47,7 +47,7 @@ EXCLUDED_SUFFIXES = [
     "SIDEWALK", "FOOTPATH", "_TILE",
 
     # Ground surfaces
-    "DIRT", "EARTH", "SOIL",
+    "DIRT", "EARTH", "SOIL", "PUDDLE"
     "GRAVEL", "GRIT", "SAND", "MUD",
     "GROUND", "GROND", "TERRAIN", "DECAL",
 
@@ -58,13 +58,13 @@ EXCLUDED_SUFFIXES = [
     # Airport markings
     "MARKING", "MARKINGS", "MARK",
     "PAINT", "STRIPE", "STRIPES",
-    "STENCIL", "CHEVRON",
+    "STENCIL", "CHEVRON", "_EDGE", "_LINE"
     "DESIGNATOR", "NUMBER",
 
     # Runway / taxiway surfaces and markings
     "RUNWAY", "RWY",
     "TAXIWAY", "TAXI", "TWY",
-    "APRON", "SKID",
+    "APRON", "SKID", 
     "CENTERLINE", "CENTRELINE",
     "THRESHOLD", "HOLDING",
     "HOLD_SHORT", "HOLDINGPOINT",
